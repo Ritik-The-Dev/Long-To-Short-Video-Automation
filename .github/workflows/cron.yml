@@ -2,7 +2,7 @@ name: Auto Video Pipeline
 
 on:
   schedule:
-    - cron: "0 0,6,10,14,18 * * *"
+    - cron: "0 0,6,10,14,18 * * *"  # UTC times
   workflow_dispatch:
 
 permissions:
@@ -17,7 +17,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
@@ -29,29 +28,38 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install ffmpeg
-        run: sudo apt-get install -y ffmpeg
-
-      - name: Install dependencies
+      # ✅ System dependencies (combined + updated)
+      - name: Install system dependencies
         run: |
-          pip install -r requirements.txt
-          pip install -r ai-video-generator/requirements.txt
-          pip install -r ai-video-uploader/requirements.txt
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg imagemagick
 
+      # ✅ Fix ImageMagick permission issue (critical for TextClip)
+      - name: Configure ImageMagick
+        run: |
+          sudo sed -i 's/rights="none"/rights="read|write"/g' /etc/ImageMagick-6/policy.xml
+
+      # ✅ Single source of truth for Python deps
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      # ✅ Restore YouTube auth files
       - name: Create YouTube token file
         run: |
-          printf "%s" '${{ secrets.YOUTUBE_TOKEN }}' > ai-video-uploader/src/token.json
+          echo '${{ secrets.YOUTUBE_TOKEN }}' > ai-video-uploader/src/token.json
 
       - name: Create YouTube client secret file
         run: |
-          printf "%s" '${{ secrets.YOUTUBE_CLIENT_SECRET }}' > ai-video-uploader/src/client_secret.json
-      
+          echo '${{ secrets.YOUTUBE_CLIENT_SECRET }}' > ai-video-uploader/src/client_secret.json
+
+      # ✅ Run pipeline (unbuffered logs)
       - name: Run pipeline
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python orchestrator.py
+        run: python -u orchestrator.py
 
+      # ✅ Commit updated tracking file (only if changed)
       - name: Commit updated topics
         if: success()
         run: |
@@ -66,6 +74,5 @@ jobs:
           fi
 
           git commit -m "auto: update used videos list"
-
           git pull --rebase origin main
           git push origin HEAD:main
