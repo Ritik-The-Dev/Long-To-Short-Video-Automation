@@ -2,6 +2,12 @@ import os
 import json
 from moviepy.editor import VideoFileClip
 
+# 🔥 Pillow compatibility fix (IMPORTANT)
+from PIL import Image
+if not hasattr(Image, "ANTIALIAS"):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
+
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 VIDEO_DIR = os.path.join(BASE_DIR, "videos")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output_clips")
@@ -27,11 +33,7 @@ def convert_to_portrait(clip):
     return cropped.resize((720, 1280))
 
 
-# 🔥 REMOVED TextClip → no ImageMagick dependency
-
-
 def process_next_clip(video_id):
-
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     if not os.path.exists(PROGRESS_FILE):
@@ -42,65 +44,70 @@ def process_next_clip(video_id):
 
     video_path = os.path.join(VIDEO_DIR, f"{video_id}.mp4")
 
-    # 🔥 Graceful handling instead of crash
     if not os.path.exists(video_path):
         raise Exception("Video not found → fetch step failed")
 
     video = VideoFileClip(video_path)
 
-    # initialize duration once
-    if progress["duration"] is None:
+    # Initialize duration safely
+    if progress.get("duration") is None:
         progress["duration"] = video.duration
 
-    start = progress["current_time"]
+    start = progress.get("current_time", 0)
     remaining = video.duration - start
 
     if remaining <= 0:
         print("No remaining content")
+        video.close()
         return True
 
     end = min(start + CLIP_DURATION, video.duration)
-
     part_no = int(start / CLIP_DURATION) + 1
 
     print(f"Creating clip {part_no}: {start} → {end}")
 
-    subclip = video.subclip(start, end)
-    subclip = convert_to_portrait(subclip)
+    try:
+        subclip = video.subclip(start, end)
+        subclip = convert_to_portrait(subclip)
 
-    output_path = os.path.join(OUTPUT_DIR, "1.mp4")
+        # ✅ FIX: unique output filename
+        output_path = os.path.join(OUTPUT_DIR, f"{video_id}_part{part_no}.mp4")
 
-    subclip.write_videofile(
-        output_path,
-        codec="libx264",
-        audio_codec="aac",
-        fps=video.fps,
-        logger=None  # cleaner logs
-    )
+        subclip.write_videofile(
+            output_path,
+            codec="libx264",
+            audio_codec="aac",
+            fps=video.fps,
+            logger=None
+        )
 
-    subclip.close()
+        subclip.close()
+
+    except Exception as e:
+        video.close()
+        raise Exception(f"Clip processing failed: {str(e)}")
+
     video.close()
 
-    # 🔁 update progress
-    progress["current_time"] = end  # 🔥 FIX (not += 60 blindly)
+    # 🔁 update progress safely
+    progress["current_time"] = end
 
-    # 🔥 FINISHED VIDEO
+    # 🎯 If finished processing full video
     if progress["current_time"] >= progress["duration"]:
         print("Video fully processed")
 
-        # mark as completed
         with open(FETCHED_LIST, "a") as f:
             f.write(video_id + "\n")
 
-        # cleanup
         if os.path.exists(video_path):
             os.remove(video_path)
 
-        os.remove(PROGRESS_FILE)
+        if os.path.exists(PROGRESS_FILE):
+            os.remove(PROGRESS_FILE)
 
         return True
 
-    # save progress
+    # Save progress
     with open(PROGRESS_FILE, "w") as f:
         json.dump(progress, f)
 

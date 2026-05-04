@@ -1,7 +1,8 @@
 import os
 from src.fetchVideo import fetch_or_resume_video
 from src.clipShorts import process_next_clip
-
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
 
 def main():
     try:

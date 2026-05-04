@@ -30,6 +30,8 @@ def run_once():
             cwd="ai-video-generator",
             capture_output=True,
             text=True,
+            encoding="utf-8",   # 🔥 THIS LINE FIXES YOUR ISSUE
+            errors="replace"    # prevents hard crash
         )
 
         print("STDOUT:", result.stdout)
