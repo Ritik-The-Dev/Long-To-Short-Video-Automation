@@ -43,6 +43,10 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
+      - name: Create cookies file
+        run: |
+          echo "${{ secrets.YOUTUBE_COOKIES }}" > ai-video-generator/src/data/cookies.txt
+      
       # ✅ Restore YouTube auth files
       - name: Create YouTube token file
         run: |

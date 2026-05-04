@@ -77,6 +77,9 @@ def fetchVideo():
 
     # 🍪 Use cookies if available
     cookie_path = os.path.join(BASE_DIR, "data", "cookies.txt")
+    
+    print("Cookie exists:", os.path.exists(cookie_path))
+    
     if os.path.exists(cookie_path):
         ydl_opts["cookies"] = cookie_path
         print("🍪 Using cookies")
