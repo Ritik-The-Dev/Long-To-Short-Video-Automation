@@ -22,11 +22,9 @@ os.makedirs(output_path, exist_ok=True)
 # -----------------------------
 def download_pytube(video_url, vid):
     try:
-        yt = YouTube(video_url)
+        yt = YouTube(video_url, 'WEB')
 
-        stream = yt.streams.filter(
-            progressive=True, file_extension="mp4"
-        ).order_by("resolution").desc().first()
+        stream = yt.streams.get_highest_resolution()
 
         if not stream:
             return False, "No progressive stream"
