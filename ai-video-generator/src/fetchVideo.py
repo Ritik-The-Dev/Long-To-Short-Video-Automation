@@ -92,7 +92,7 @@ def fetch_or_resume_video():
             progress = json.load(f)
 
         vid = progress["video_id"]
-        print(f"🔁 Resuming video: {vid}")
+        print(f" Resuming video: {vid}")
 
         return vid, listPath
 
@@ -121,23 +121,23 @@ def fetch_or_resume_video():
             continue
 
         video_url = f"https://www.youtube.com/watch?v={vid}"
-        print(f"\n🎬 Fetching NEW video: {title}")
+        print(f"\ Fetching NEW video: {title}")
 
         # 🔥 Try pytube first
         success, result = download_pytube(video_url, vid)
 
         if success:
-            print("✅ Downloaded via pytubefix")
+            print(" Downloaded via pytubefix")
         else:
-            print("⚠️ pytubefix failed:", result)
+            print("pytubefix failed:", result)
 
             # fallback
             success, result = download_ytdlp(video_url, vid)
 
             if success:
-                print("✅ Downloaded via yt-dlp fallback")
+                print(" Downloaded via yt-dlp fallback")
             else:
-                print("❌ Both downloaders failed → skipping")
+                print("Both downloaders failed → skipping")
                 break
 
         # ✅ Save metadata
@@ -159,5 +159,5 @@ def fetch_or_resume_video():
 
         return vid, listPath
 
-    print("❌ No usable videos found")
+    print(" No usable videos found")
     return None, listPath

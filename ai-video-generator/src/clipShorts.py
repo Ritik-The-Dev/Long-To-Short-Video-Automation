@@ -56,14 +56,14 @@ def process_next_clip(video_id):
     remaining = video.duration - start
 
     if remaining <= 0:
-        print("⚠️ No remaining content")
+        print("No remaining content")
         return True
 
     end = min(start + CLIP_DURATION, video.duration)
 
     part_no = int(start / CLIP_DURATION) + 1
 
-    print(f"✂️ Creating clip {part_no}: {start} → {end}")
+    print(f"Creating clip {part_no}: {start} → {end}")
 
     subclip = video.subclip(start, end)
     subclip = convert_to_portrait(subclip)
@@ -86,7 +86,7 @@ def process_next_clip(video_id):
 
     # 🔥 FINISHED VIDEO
     if progress["current_time"] >= progress["duration"]:
-        print("✅ Video fully processed")
+        print("Video fully processed")
 
         # mark as completed
         with open(FETCHED_LIST, "a") as f:
