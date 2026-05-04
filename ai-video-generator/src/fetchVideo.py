@@ -11,9 +11,10 @@ video_path = os.path.join(BASE_DIR, "videos")
 
 os.makedirs(folder_path, exist_ok=True)
 os.makedirs(video_path, exist_ok=True)
-
+os.makedirs(output_path, exist_ok=True)
 
 def fetchVideo():
+
     fetchedList = set()
 
     listPath = os.path.join(folder_path, "fetchedList.txt")
@@ -59,8 +60,8 @@ def fetchVideo():
     ydl_opts = {
         "outtmpl": os.path.join(video_path, "%(id)s.%(ext)s"),
 
-        # 🔥 BEST QUALITY (video + audio separately, then merge)
-        "format": "bv*+ba/b",
+        # safer format (less suspicious than bv*+ba sometimes)
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",
 
         "merge_output_format": "mp4",
 
@@ -69,12 +70,30 @@ def fetchVideo():
         "writeautomaticsub": True,
         "subtitleslangs": ["hi"],
         "subtitlesformat": "srt",
-        "js_runtimes": {"node": {}},
-        # optional cookies
+
+        # mimic real browser
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9"
+        },
+
+        # VERY IMPORTANT
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "web"]
+            }
+        },
+
+        # reduce bot suspicion
         "sleep_interval": 5,
         "max_sleep_interval": 10,
-    }
+        "retries": 3,
+        "fragment_retries": 3,
 
+        # stability
+        "noplaylist": True,
+    }
     # 🍪 Use cookies if available
     cookie_path = os.path.join(BASE_DIR, "data", "cookies.txt")
     
@@ -82,6 +101,7 @@ def fetchVideo():
     
     if os.path.exists(cookie_path):
         ydl_opts["cookies"] = cookie_path
+        ydl_opts["cookiefile"] = cookie_path
         print("🍪 Using cookies")
 
     # ✅ STEP 3: retry logic
