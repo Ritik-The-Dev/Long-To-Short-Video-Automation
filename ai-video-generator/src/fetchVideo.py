@@ -1,6 +1,7 @@
-import yt_dlp
 import os
 import time
+import yt_dlp
+from pytubefix import YouTube
 
 CHANNEL_URL = "https://www.youtube.com/@AnokhiFilms10/videos"
 
@@ -13,131 +14,128 @@ os.makedirs(folder_path, exist_ok=True)
 os.makedirs(video_path, exist_ok=True)
 os.makedirs(output_path, exist_ok=True)
 
+
+# -----------------------------
+# 🔹 Downloader 1: pytubefix
+# -----------------------------
+def download_pytube(video_url, vid):
+    try:
+        yt = YouTube(video_url)
+
+        stream = yt.streams.filter(
+            progressive=True, file_extension="mp4"
+        ).order_by("resolution").desc().first()
+
+        if not stream:
+            return False, "No progressive stream"
+
+        file_path = stream.download(output_path=video_path, filename=f"{vid}.mp4")
+
+        return True, {
+            "title": yt.title,
+            "description": yt.description,
+            "file_path": file_path
+        }
+
+    except Exception as e:
+        return False, str(e)
+
+
+# -----------------------------
+# 🔹 Downloader 2: yt-dlp fallback
+# -----------------------------
+def download_ytdlp(video_url, vid):
+    try:
+        ydl_opts = {
+            "outtmpl": os.path.join(video_path, f"{vid}.%(ext)s"),
+            "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",
+            "merge_output_format": "mp4",
+            "quiet": True,
+            "noplaylist": True,
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=True)
+
+        return True, {
+            "title": info.get("title", "no_title"),
+            "description": info.get("description", "")
+        }
+
+    except Exception as e:
+        return False, str(e)
+
+
+# -----------------------------
+# 🔹 Main pipeline
+# -----------------------------
 def fetchVideo():
 
     fetchedList = set()
-
     listPath = os.path.join(folder_path, "fetchedList.txt")
+
     if os.path.exists(listPath):
         with open(listPath, "r") as f:
             fetchedList = set(f.read().splitlines())
 
-    # ✅ STEP 1: get video list (no extract_flat → ensures timestamp exists)
-    ydl_options = {
-        "quiet": True,
-        "extract_flat": True 
-    }
-
-    with yt_dlp.YoutubeDL(ydl_options) as ydl:
+    # 🔹 use yt-dlp ONLY for listing
+    with yt_dlp.YoutubeDL({"quiet": True, "extract_flat": True}) as ydl:
         info = ydl.extract_info(CHANNEL_URL, download=False)
 
     videos = info.get("entries", [])
 
-    # ✅ Sort latest → oldest (robust, not relying on YouTube order)
     videos = sorted(
         videos,
         key=lambda x: int(x.get("upload_date") or 0),
         reverse=True
     )
 
-    next_video = None
     for v in videos:
         vid = v.get("id")
         title = v.get("title", vid)
 
-        if vid and vid not in fetchedList:
-            next_video = (title, vid)
-            break
+        if not vid or vid in fetchedList:
+            continue
 
-    if not next_video:
-        print("✅ No new videos left")
-        return None, listPath
+        video_url = f"https://www.youtube.com/watch?v={vid}"
+        print(f"\nProcessing: {title}")
 
-    title, vid = next_video
-    print("🎬 Processing Video:", title)
+        # -----------------------------
+        # 🔥 STEP 1: pytube attempt
+        # -----------------------------
+        success, result = download_pytube(video_url, vid)
 
-    # ✅ STEP 2: yt-dlp options (highest quality, stable merging)
-    ydl_opts = {
-        "outtmpl": os.path.join(video_path, "%(id)s.%(ext)s"),
+        if success:
+            print(" Downloaded via pytubefix")
 
-        # safer format (less suspicious than bv*+ba sometimes)
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",
+        else:
+            print(" pytubefix failed:", result)
 
-        "merge_output_format": "mp4",
+            # -----------------------------
+            # 🔥 STEP 2: yt-dlp fallback
+            # -----------------------------
+            success, result = download_ytdlp(video_url, vid)
 
-        # subtitles
-        "writesubtitles": True,
-        "writeautomaticsub": True,
-        "subtitleslangs": ["hi"],
-        "subtitlesformat": "srt",
-
-        # mimic real browser
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9"
-        },
-
-        # VERY IMPORTANT
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["android", "web"]
-            }
-        },
-
-        # reduce bot suspicion
-        "sleep_interval": 5,
-        "max_sleep_interval": 10,
-        "retries": 3,
-        "fragment_retries": 3,
-
-        # stability
-        "noplaylist": True,
-    }
-    # 🍪 Use cookies if available
-    cookie_path = os.path.join(BASE_DIR, "data", "cookies.txt")
-    
-    print("Cookie exists:", os.path.exists(cookie_path))
-    
-    if os.path.exists(cookie_path):
-        ydl_opts["cookies"] = cookie_path
-        ydl_opts["cookiefile"] = cookie_path
-        print("🍪 Using cookies")
-
-    # ✅ STEP 3: retry logic
-    for attempt in range(3):
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(
-                    f"https://www.youtube.com/watch?v={vid}",
-                    download=True
-                )
-
-            # ✅ Get full metadata
-            title = info.get("title", "no_title")
-            description = info.get("description", "")
-
-            print("✅ Video downloaded:", vid)
-            print("📌 Title:", title)
-
-            # ✅ Save metadata to file
-            meta_path = os.path.join(output_path, f"metaData.txt")
-            with open(meta_path, "w", encoding="utf-8") as f:
-                f.write(f"TITLE:\n{title}\n\n")
-                f.write(f"DESCRIPTION:\n{description}\n")
-
-            # ✅ Save to fetched list
-            with open(listPath, "a") as f:
-                f.write(vid + "\n")
-
-            return vid, listPath
-
-        except Exception as e:
-            print(f"❌ Attempt {attempt + 1} failed:", str(e))
-
-            if attempt < 2:
-                print("⏳ Retrying in 10 seconds...")
-                time.sleep(10)
+            if success:
+                print(" Downloaded via yt-dlp fallback")
             else:
-                print("🚫 Failed after retries")
-                raise
+                print(" Both downloaders failed → skipping")
+                continue  # 🔥 KEY: skip instead of crash
+
+        # -----------------------------
+        # Save metadata
+        # -----------------------------
+        meta_path = os.path.join(output_path, "metaData.txt")
+
+        with open(meta_path, "w", encoding="utf-8") as f:
+            f.write(f"TITLE:\n{result['title']}\n\n")
+            f.write(f"DESCRIPTION:\n{result['description']}\n")
+
+        # mark as processed
+        with open(listPath, "a") as f:
+            f.write(vid + "\n")
+
+        return vid, listPath
+
+    print(" No usable videos found")
+    return None, listPath

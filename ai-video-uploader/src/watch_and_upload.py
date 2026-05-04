@@ -39,14 +39,14 @@ def run():
     print("Contents:", os.listdir(OUTBOX) if os.path.exists(OUTBOX) else "N/A")
 
     if not os.path.exists(OUTBOX):
-        print("❌ OUTBOX folder does not exist")
+        print(" OUTBOX folder does not exist")
         return
 
     video_path = find_video_file(OUTBOX)
     script_path = find_script(OUTBOX)
 
     if not video_path:
-        print("⚠️ No .mp4 file found in OUTBOX")
+        print("No .mp4 file found in OUTBOX")
         return
 
     print(f"Uploading video: {os.path.basename(video_path)}")
@@ -55,9 +55,9 @@ def run():
 
     if video_id:
         os.remove(video_path)
-        print(f"✅ Uploaded and deleted: {video_path}")
+        print(f" Uploaded and deleted: {video_path}")
     else:
-        print(f"❌ Failed upload: {video_path}")
+        print(f" Failed upload: {video_path}")
 
 if __name__ == "__main__":
     run()

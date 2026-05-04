@@ -7,10 +7,10 @@ def main():
         process_video()
         with open(listPath, "a") as f:
             f.write(videoId + "\n")
-        print("🎉 Done!")
+        print("Done!")
         
     except Exception as e:
-        print("💥 Pipeline crashed:", str(e))
+        print("Pipeline crashed:", str(e))
 
 
 if __name__ == "__main__":

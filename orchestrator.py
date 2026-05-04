@@ -4,7 +4,7 @@ from sendTelegramNotification import send_telegram
 # from dotenv import load_dotenv
 # load_dotenv()
 
-print("🚀 STARTING PIPELINE")
+print(" STARTING PIPELINE")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -23,13 +23,13 @@ def run_once():
     try:
         send_telegram("🚀 GitHub pipeline started")
 
-        print("📂 Checking OUTBOX:", OUTBOX)
+        print("Checking OUTBOX:", OUTBOX)
 
         # 🔥 Decision logic
         if has_videos(OUTBOX):
-            print("📦 Videos already exist → Skipping generation")
+            print("Videos already exist → Skipping generation")
         else:
-            print("👉 Step 1: Generating video")
+            print(" Step 1: Generating video")
 
             result = subprocess.run(
                 ["python", "run.py"],
@@ -45,7 +45,7 @@ def run_once():
                 raise Exception("Generation failed")
 
         # 👉 Always upload ONE video (your uploader handles 1-by-1)
-        print("👉 Step 2: Uploading video")
+        print(" Step 2: Uploading video")
 
         result2 = subprocess.run(
             ["python", "-m", "src.watch_and_upload"],
