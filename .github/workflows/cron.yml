@@ -70,7 +70,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
 
-          git add ai-video-generator/src/data/fetchedList.txt
+          git add ai-video-generator/src/data/
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
