@@ -54,6 +54,18 @@ def download_ytdlp(video_url, vid):
             "merge_output_format": "mp4",
             "quiet": True,
             "noplaylist": True,
+              # 🔥 CRITICAL
+            "cookiefile": os.path.join(BASE_DIR, "data", "cookies.txt"),
+
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android"]
+                }
+            },
+
+            "http_headers": {
+                "User-Agent": "Mozilla/5.0"
+            }
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -128,7 +140,7 @@ def fetch_or_resume_video():
                 print("✅ Downloaded via yt-dlp fallback")
             else:
                 print("❌ Both downloaders failed → skipping")
-                continue
+                break
 
         # ✅ Save metadata
         meta_path = os.path.join(output_path, "metaData.txt")
