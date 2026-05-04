@@ -1,0 +1,71 @@
+name: Auto Video Pipeline
+
+on:
+  schedule:
+    - cron: "0 0,6,10,14,18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-video-pipeline
+  cancel-in-progress: false
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install ffmpeg
+        run: sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r ai-video-generator/requirements.txt
+          pip install -r ai-video-uploader/requirements.txt
+
+      - name: Create YouTube token file
+        run: |
+          printf "%s" '${{ secrets.YOUTUBE_TOKEN }}' > ai-video-uploader/src/token.json
+
+      - name: Create YouTube client secret file
+        run: |
+          printf "%s" '${{ secrets.YOUTUBE_CLIENT_SECRET }}' > ai-video-uploader/src/client_secret.json
+      
+      - name: Run pipeline
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python orchestrator.py
+
+      - name: Commit updated topics
+        if: success()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          git add ai-video-generator/src/data/fetchedList.txt
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "auto: update used videos list"
+
+          git pull --rebase origin main
+          git push origin HEAD:main

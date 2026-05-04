@@ -1,0 +1,11 @@
+client_secret.json
+token.json
+venv/
+upload-env/
+ai-video-generator/src/__pycache__
+__pycache__/
+*.pyc
+.env
+.DS_Store
+Thumbs.db
+logs/
