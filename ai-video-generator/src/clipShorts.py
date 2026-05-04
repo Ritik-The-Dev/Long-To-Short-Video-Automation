@@ -1,6 +1,16 @@
 import os
-import math
-from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
+import json
+from moviepy.editor import VideoFileClip
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+VIDEO_DIR = os.path.join(BASE_DIR, "videos")
+OUTPUT_DIR = os.path.join(BASE_DIR, "output_clips")
+DATA_DIR = os.path.join(BASE_DIR, "data")
+
+PROGRESS_FILE = os.path.join(DATA_DIR, "video_progress.json")
+FETCHED_LIST = os.path.join(DATA_DIR, "fetchedList.txt")
+
+CLIP_DURATION = 60
 
 
 def convert_to_portrait(clip):
@@ -17,71 +27,81 @@ def convert_to_portrait(clip):
     return cropped.resize((720, 1280))
 
 
-def add_title(clip, part_no):
-    txt = TextClip(
-        f"Part {part_no}",
-        fontsize=60,
-        color="white",
-        method="caption",
-        size=(720, 100)
-    ).set_position(("center", "top")).set_duration(clip.duration)
-
-    return CompositeVideoClip([clip, txt])
+# 🔥 REMOVED TextClip → no ImageMagick dependency
 
 
-def process_video():
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    VIDEO_DIR = os.path.join(BASE_DIR, "videos")
-    OUTPUT_DIR = os.path.join(BASE_DIR, "output_clips")
-
-    mp4_files = [f for f in os.listdir(VIDEO_DIR) if f.endswith(".mp4")]
-    if not mp4_files:
-        raise Exception("No MP4 video found in src/videos")
-
-    mp4_paths = [os.path.join(VIDEO_DIR, f) for f in mp4_files]
-    INPUT_VIDEO = max(mp4_paths, key=os.path.getmtime)
-
-    CLIP_DURATION = 60
+def process_next_clip(video_id):
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    video = VideoFileClip(INPUT_VIDEO)
+    if not os.path.exists(PROGRESS_FILE):
+        raise Exception("No progress file found")
 
-    total_duration = video.duration
-    num_clips = math.ceil(total_duration / CLIP_DURATION)
+    with open(PROGRESS_FILE, "r") as f:
+        progress = json.load(f)
 
-    for i in range(num_clips):
-        start = i * CLIP_DURATION
-        end = min((i + 1) * CLIP_DURATION, total_duration)
+    video_path = os.path.join(VIDEO_DIR, f"{video_id}.mp4")
 
-        subclip = video.subclip(start, end)
-        subclip = convert_to_portrait(subclip)
-        subclip = add_title(subclip, i + 1)
+    # 🔥 Graceful handling instead of crash
+    if not os.path.exists(video_path):
+        raise Exception("Video not found → fetch step failed")
 
-        output_path = os.path.join(OUTPUT_DIR, f"{i+1}.mp4")
+    video = VideoFileClip(video_path)
 
-        subclip.write_videofile(
-            output_path,
-            codec="libx264",
-            audio_codec="aac",
-            fps=video.fps
-        )
+    # initialize duration once
+    if progress["duration"] is None:
+        progress["duration"] = video.duration
 
-        subclip.close()
+    start = progress["current_time"]
+    remaining = video.duration - start
 
+    if remaining <= 0:
+        print("⚠️ No remaining content")
+        return True
+
+    end = min(start + CLIP_DURATION, video.duration)
+
+    part_no = int(start / CLIP_DURATION) + 1
+
+    print(f"✂️ Creating clip {part_no}: {start} → {end}")
+
+    subclip = video.subclip(start, end)
+    subclip = convert_to_portrait(subclip)
+
+    output_path = os.path.join(OUTPUT_DIR, "1.mp4")
+
+    subclip.write_videofile(
+        output_path,
+        codec="libx264",
+        audio_codec="aac",
+        fps=video.fps,
+        logger=None  # cleaner logs
+    )
+
+    subclip.close()
     video.close()
 
-    # cleanup videos folder
-    for file in os.listdir(VIDEO_DIR):
-        file_path = os.path.join(VIDEO_DIR, file)
-        try:
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-        except Exception as e:
-            print(f"Error deleting {file_path}: {e}")
+    # 🔁 update progress
+    progress["current_time"] = end  # 🔥 FIX (not += 60 blindly)
 
-    print("Done! Clips created successfully.")
+    # 🔥 FINISHED VIDEO
+    if progress["current_time"] >= progress["duration"]:
+        print("✅ Video fully processed")
 
+        # mark as completed
+        with open(FETCHED_LIST, "a") as f:
+            f.write(video_id + "\n")
 
-if __name__ == "__main__":
-    process_video()
+        # cleanup
+        if os.path.exists(video_path):
+            os.remove(video_path)
+
+        os.remove(PROGRESS_FILE)
+
+        return True
+
+    # save progress
+    with open(PROGRESS_FILE, "w") as f:
+        json.dump(progress, f)
+
+    return False

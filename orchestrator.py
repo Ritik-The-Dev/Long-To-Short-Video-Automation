@@ -23,26 +23,17 @@ def run_once():
     try:
         send_telegram("🚀 GitHub pipeline started")
 
-        print("Checking OUTBOX:", OUTBOX)
+        print(" Step 1: Generating video")
+        
+        result = subprocess.run(
+            ["python", "run.py"],
+            cwd="ai-video-generator",
+            capture_output=True,
+            text=True,
+        )
 
-        # 🔥 Decision logic
-        if has_videos(OUTBOX):
-            print("Videos already exist → Skipping generation")
-        else:
-            print(" Step 1: Generating video")
-
-            result = subprocess.run(
-                ["python", "run.py"],
-                cwd="ai-video-generator",
-                capture_output=True,
-                text=True,
-            )
-
-            print("STDOUT:", result.stdout)
-            print("STDERR:", result.stderr)
-
-            if result.returncode != 0:
-                raise Exception("Generation failed")
+        print("STDOUT:", result.stdout)
+        print("STDERR:", result.stderr)
 
         # 👉 Always upload ONE video (your uploader handles 1-by-1)
         print(" Step 2: Uploading video")
@@ -60,7 +51,7 @@ def run_once():
         if result2.returncode != 0:
             raise Exception("Upload failed")
 
-        print("✅ Upload step completed")
+        print("Upload step completed")
         send_telegram("✅ Video uploaded successfully!")
 
     except Exception as e:

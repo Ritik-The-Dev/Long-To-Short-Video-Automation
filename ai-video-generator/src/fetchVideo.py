@@ -1,5 +1,5 @@
 import os
-import time
+import json
 import yt_dlp
 from pytubefix import YouTube
 
@@ -9,6 +9,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 folder_path = os.path.join(BASE_DIR, "data")
 output_path = os.path.join(BASE_DIR, "output_clips")
 video_path = os.path.join(BASE_DIR, "videos")
+
+PROGRESS_FILE = os.path.join(folder_path, "video_progress.json")
 
 os.makedirs(folder_path, exist_ok=True)
 os.makedirs(video_path, exist_ok=True)
@@ -48,7 +50,7 @@ def download_ytdlp(video_url, vid):
     try:
         ydl_opts = {
             "outtmpl": os.path.join(video_path, f"{vid}.%(ext)s"),
-            "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",
+            "format": "best[ext=mp4]/mp4",
             "merge_output_format": "mp4",
             "quiet": True,
             "noplaylist": True,
@@ -59,7 +61,8 @@ def download_ytdlp(video_url, vid):
 
         return True, {
             "title": info.get("title", "no_title"),
-            "description": info.get("description", "")
+            "description": info.get("description", ""),
+            "file_path": os.path.join(video_path, f"{vid}.mp4")
         }
 
     except Exception as e:
@@ -67,29 +70,39 @@ def download_ytdlp(video_url, vid):
 
 
 # -----------------------------
-# 🔹 Main pipeline
+# 🔥 MAIN FUNCTION
 # -----------------------------
-def fetchVideo():
+def fetch_or_resume_video():
 
-    fetchedList = set()
     listPath = os.path.join(folder_path, "fetchedList.txt")
 
+    # 🔁 Resume existing video
+    if os.path.exists(PROGRESS_FILE):
+        with open(PROGRESS_FILE, "r") as f:
+            progress = json.load(f)
+
+        vid = progress["video_id"]
+        print(f"🔁 Resuming video: {vid}")
+
+        return vid, listPath
+
+    # 🔹 Load fetched list
+    fetchedList = set()
     if os.path.exists(listPath):
         with open(listPath, "r") as f:
             fetchedList = set(f.read().splitlines())
 
-    # 🔹 use yt-dlp ONLY for listing
+    # 🔹 Fetch channel videos
     with yt_dlp.YoutubeDL({"quiet": True, "extract_flat": True}) as ydl:
         info = ydl.extract_info(CHANNEL_URL, download=False)
 
-    videos = info.get("entries", [])
-
     videos = sorted(
-        videos,
+        info.get("entries", []),
         key=lambda x: int(x.get("upload_date") or 0),
         reverse=True
     )
 
+    # 🔥 Find next usable video
     for v in videos:
         vid = v.get("id")
         title = v.get("title", vid)
@@ -98,44 +111,43 @@ def fetchVideo():
             continue
 
         video_url = f"https://www.youtube.com/watch?v={vid}"
-        print(f"\nProcessing: {title}")
+        print(f"\n🎬 Fetching NEW video: {title}")
 
-        # -----------------------------
-        # 🔥 STEP 1: pytube attempt
-        # -----------------------------
+        # 🔥 Try pytube first
         success, result = download_pytube(video_url, vid)
 
         if success:
-            print(" Downloaded via pytubefix")
-
+            print("✅ Downloaded via pytubefix")
         else:
-            print(" pytubefix failed:", result)
+            print("⚠️ pytubefix failed:", result)
 
-            # -----------------------------
-            # 🔥 STEP 2: yt-dlp fallback
-            # -----------------------------
+            # fallback
             success, result = download_ytdlp(video_url, vid)
 
             if success:
-                print(" Downloaded via yt-dlp fallback")
+                print("✅ Downloaded via yt-dlp fallback")
             else:
-                print(" Both downloaders failed → skipping")
-                continue  # 🔥 KEY: skip instead of crash
+                print("❌ Both downloaders failed → skipping")
+                continue
 
-        # -----------------------------
-        # Save metadata
-        # -----------------------------
+        # ✅ Save metadata
         meta_path = os.path.join(output_path, "metaData.txt")
 
         with open(meta_path, "w", encoding="utf-8") as f:
             f.write(f"TITLE:\n{result['title']}\n\n")
             f.write(f"DESCRIPTION:\n{result['description']}\n")
 
-        # mark as processed
-        with open(listPath, "a") as f:
-            f.write(vid + "\n")
+        # 🔥 Initialize progress
+        progress = {
+            "video_id": vid,
+            "current_time": 0,
+            "duration": None
+        }
+
+        with open(PROGRESS_FILE, "w") as f:
+            json.dump(progress, f)
 
         return vid, listPath
 
-    print(" No usable videos found")
+    print("❌ No usable videos found")
     return None, listPath
